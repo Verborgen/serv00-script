@@ -38,7 +38,7 @@ except json.JSONDecodeError:
 summary_message = "serv00-vless 恢复操作结果：\n"
 
 # 默认恢复命令
-default_restore_command = "cd ~/domains/vless.970515.xyz && npm start node index.js"
+default_restore_command = "cd ~/domains/vless.970515.xyz && nohup npm start & node index.js"
 
 # 遍历服务器列表并执行恢复操作
 for server in servers:
