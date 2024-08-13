@@ -1,62 +1,47 @@
-import os
-import json
-import subprocess
 import requests
 
-def send_telegram_message(token, chat_id, message):
-    telegram_url = f"https://api.telegram.org/bot{token}/sendMessage"
-    telegram_payload = {
-        "chat_id": chat_id,
-        "text": message,
-        "reply_markup": '{"inline_keyboard":[[{"text":"问题反馈❓","url":"https://t.me/yxjsjl"}]]}'
-    }
+def login_and_send_message(username, password, telegram_bot_token, telegram_chat_id):
+    # 登录网站的 URL
+    login_url = 'https://example.com/login'
+    # 登录后主页的 URL（或其他需要访问的页面）
+    home_url = 'https://duckyci.com/auth/login?redirect=https%3A%2F%2Fdash.duckyci.com%2F'
+    # 要发送消息的 Telegram API URL
+    telegram_url = f'https://api.telegram.org/bot{telegram_bot_token}/sendMessage'
 
-    response = requests.post(telegram_url, json=telegram_payload)
-    print(f"Telegram 请求状态码：{response.status_code}")
-    print(f"Telegram 请求返回内容：{response.text}")
+    # 创建一个会话对象
+    with requests.Session() as session:
+        # 获取登录页面
+        session.get(login_url)
 
-    if response.status_code != 200:
-        print("发送 Telegram 消息失败")
-    else:
-        print("发送 Telegram 消息成功")
+        # 提交登录表单，使用网页的 id 作为键
+        login_data = {
+            'r0': username,  # 'user_id' 对应输入框的 id
+            'r1': password,  # 'pass_id' 对应输入框的 id
+        }
+        response = session.post(login_url, data=login_data)
 
-# 从环境变量中获取密钥
-accounts_json = os.getenv('ACCOUNTS_JSON')
-telegram_token = os.getenv('TELEGRAM_TOKEN')
-telegram_chat_id = os.getenv('TELEGRAM_CHAT_ID')
+        # 访问登录后主页
+        home_response = session.get(home_url)
 
-# 检查并解析 JSON 字符串
-try:
-    servers = json.loads(accounts_json)
-except json.JSONDecodeError:
-    error_message = "ACCOUNTS_JSON 参数格式错误"
-    print(error_message)
-    send_telegram_message(telegram_token, telegram_chat_id, error_message)
-    exit(1)
+        # 根据状态码判断登录是否成功
+        if home_response.status_code == 200:
+            message = "Login successful."
+        else:
+            message = "Login failed. Please check your credentials."
 
-# 初始化汇总消息
-summary_message = "serv00-vless 恢复操作结果：\n"
+        # 发送 Telegram 消息
+        telegram_data = {
+            'chat_id': telegram_chat_id,
+            'text': message,
+        }
+        response = requests.post(telegram_url, data=telegram_data)
+        print(f'Telegram response: {response.text}')
 
-# 默认恢复命令
-default_restore_command = "~/.npm-global/bin/pm2 resurrect"
+if __name__ == '__main__':
+    import os
+    username = os.environ['USERNAME']
+    password = os.environ['PASSWORD']
+    telegram_bot_token = os.environ['TELEGRAM_BOT_TOKEN']
+    telegram_chat_id = os.environ['TELEGRAM_CHAT_ID']
 
-# 遍历服务器列表并执行恢复操作
-for server in servers:
-    host = server['host']
-    port = server['port']
-    username = server['username']
-    password = server['password']
-    cron_command = server.get('cron', default_restore_command)
-
-    print(f"连接到 {host}...")
-
-    # 执行恢复命令（这里假设使用 SSH 连接和密码认证）
-    restore_command = f"sshpass -p '{password}' ssh -o StrictHostKeyChecking=no -p {port} {username}@{host} '{cron_command}'"
-    try:
-        output = subprocess.check_output(restore_command, shell=True, stderr=subprocess.STDOUT)
-        summary_message += f"\n成功恢复 {host} 上的 vless 服务：\n{output.decode('utf-8')}"
-    except subprocess.CalledProcessError as e:
-        summary_message += f"\n无法恢复 {host} 上的 vless 服务：\n{e.output.decode('utf-8')}"
-
-# 发送汇总消息到 Telegram
-send_telegram_message(telegram_token, telegram_chat_id, summary_message)
+    login_and_send_message(username, password, telegram_bot_token, telegram_chat_id)
