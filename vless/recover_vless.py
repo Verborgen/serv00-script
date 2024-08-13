@@ -1,4 +1,3 @@
-@@ -1,62 +1,47 @@
 import os
 import json
 import subprocess
